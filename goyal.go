@@ -7,9 +7,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -104,8 +103,8 @@ func addCallbacks(connection *irc.Connection, config IRCConfig) {
 }
 
 func getConfig() (config IRCConfig, err error) {
-	_, executable, _, _ := runtime.Caller(1)
-	data, err := ioutil.ReadFile(path.Join(path.Dir(executable), "config.json"))
+	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	data, err := ioutil.ReadFile(filepath.Join(dir, "config.json"))
 	if err != nil {
 		return IRCConfig{}, fmt.Errorf("Could not read config file.\n")
 	}
@@ -143,8 +142,8 @@ func logMessage(config *IRCConfig, channel string, format string, args ...interf
 
 func getLogFile(config *IRCConfig, channel string, now time.Time) *os.File {
 	today := now.Format(TIME_FILE_FORMAT)
-	logFileName := path.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", channel, today))
-	symLinkName := path.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", channel, "log"))
+	logFileName := filepath.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", channel, today))
+	symLinkName := filepath.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", channel, "log"))
 	var err error
 
 	// FIXME: maps are not safe to use concurrently
@@ -192,7 +191,7 @@ func cleanUpLogs(dir string, now time.Time, channels []string) {
 			continue
 		}
 
-		fpath := path.Join(dir, f.Name())
+		fpath := filepath.Join(dir, f.Name())
 		fmt.Printf("Deleting log file %s\n", fpath)
 		err := os.Remove(fpath)
 		if err != nil {
