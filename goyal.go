@@ -142,8 +142,9 @@ func logMessage(config *IRCConfig, channel string, format string, args ...interf
 
 func getLogFile(config *IRCConfig, channel string, now time.Time) *os.File {
 	today := now.Format(TIME_FILE_FORMAT)
-	logFileName := filepath.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", channel, today))
-	symLinkName := filepath.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", channel, "log"))
+	cname := strings.Replace(channel, "#", "", -1)
+	logFileName := filepath.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", cname, today))
+	symLinkName := filepath.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", cname, "log"))
 	var err error
 
 	// FIXME: maps are not safe to use concurrently
@@ -178,7 +179,7 @@ func getLogFile(config *IRCConfig, channel string, now time.Time) *os.File {
 
 func cleanUpLogs(dir string, now time.Time, channels []string) {
 	re_string := fmt.Sprintf("%s-(?P<date>\\d{4}-\\d{2}-\\d{2}).txt", strings.Join(channels, "|"))
-	re := regexp.MustCompile(re_string)
+	re := regexp.MustCompile(strings.Replace(re_string, "#", "", -1))
 	files, _ := ioutil.ReadDir(dir)
 	for _, f := range files {
 		match := re.FindStringSubmatch(f.Name())
