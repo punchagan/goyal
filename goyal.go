@@ -7,22 +7,25 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
+	"regexp"
 	"strings"
- 	"time"
+	"time"
 )
 
 const (
-	TIME_MESSAGE_FORMAT   = "Jan 2 2006 15:04:05"
-	TIME_FILE_FORMAT   = "2006-01-02"
+	TIME_MESSAGE_FORMAT = "Jan 2 2006 15:04:05"
+	TIME_FILE_FORMAT    = "2006-01-02"
+	LOG_FILE_DAYS       = 15
 )
 
 type IRCConfig struct {
-	Nick        string
-	Username    string
-	Server      string
-	Channels    []string
-	LogFileDir  string
-	LogFiles    map[string]*os.File
+	Nick     string
+	Username string
+	Server   string
+	Channels []string
+	LogDir   string
+	LogFiles map[string]*os.File
 }
 
 func main() {
@@ -117,7 +120,6 @@ func getConfig() (config IRCConfig, err error) {
 	return config, nil
 }
 
-
 func closeLogFiles(config IRCConfig) {
 	for _, logFile := range config.LogFiles {
 		logFile.Close()
@@ -125,14 +127,26 @@ func closeLogFiles(config IRCConfig) {
 }
 
 func logMessage(config *IRCConfig, channel string, format string, args ...interface{}) {
-	now := time.Now().UTC().Format(TIME_MESSAGE_FORMAT)
-	today := time.Now().UTC().Format(TIME_FILE_FORMAT)
-	// FIXME: Fix path manipulation
-	logFileName := fmt.Sprintf("%s/%s-%s.txt", config.LogFileDir, channel, today)
-	symLinkName := fmt.Sprintf("%s/%s-%s.txt", config.LogFileDir, channel, "log")
-	logFile, ok := config.LogFiles[channel]
+	now := time.Now().UTC()
+	logFile := getLogFile(config, channel, now)
+	message := fmt.Sprintf("<%s> %s\n", now.Format(TIME_MESSAGE_FORMAT), format)
+	message = fmt.Sprintf(message, args...)
+
+	_, err := logFile.WriteString(message)
+	if err != nil {
+		panic(fmt.Sprintf("Writing is failing %+v\n", err))
+	}
+
+}
+
+func getLogFile(config *IRCConfig, channel string, now time.Time) *os.File {
+	today := now.Format(TIME_FILE_FORMAT)
+	logFileName := path.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", channel, today))
+	symLinkName := path.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", channel, "log"))
 	var err error
 
+	// FIXME: maps are not safe to use concurrently
+	logFile, ok := config.LogFiles[channel]
 	switch {
 
 	case ok && logFileName == logFile.Name():
@@ -153,12 +167,35 @@ func logMessage(config *IRCConfig, channel string, format string, args ...interf
 		// probably doesn't matter.
 		config.LogFiles[channel] = logFile
 		os.Symlink(logFileName, symLinkName)
+
+		// Delete unnecessary files, if any.
+		cleanUpLogs(config.LogDir, now, config.Channels)
 	}
 
-	message := fmt.Sprintf(fmt.Sprintf("<%s> %s\n", now, format), args...)
-	_, err = logFile.WriteString(message)
-	if err != nil {
-		panic(fmt.Sprintf("Writing is failing %+v\n", err))
-	}
+	return logFile
+}
 
+func cleanUpLogs(dir string, now time.Time, channels []string) {
+	re_string := fmt.Sprintf("%s-(?P<date>\\d{4}-\\d{2}-\\d{2}).txt", strings.Join(channels, "|"))
+	re := regexp.MustCompile(re_string)
+	files, _ := ioutil.ReadDir(dir)
+	for _, f := range files {
+		match := re.FindStringSubmatch(f.Name())
+		if match == nil {
+			continue
+		}
+
+		t, _ := time.Parse(TIME_FILE_FORMAT, match[1])
+		if !now.After(t.AddDate(0, 0, LOG_FILE_DAYS)) {
+			continue
+		}
+
+		fpath := path.Join(dir, f.Name())
+		fmt.Printf("Deleting log file %s\n", fpath)
+		err := os.Remove(fpath)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+	}
 }
