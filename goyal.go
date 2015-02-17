@@ -34,7 +34,7 @@ func main() {
 	connection := irc.IRC(config.Nick, config.Username)
 	connection.UseTLS = true
 
-	config = setupLogFiles(config)
+	setupLogFiles(&config)
 	defer closeLogFiles(config)
 	addCallbacks(connection, config)
 
@@ -119,7 +119,7 @@ func getConfig() (config IRCConfig, err error) {
 	return config, nil
 }
 
-func setupLogFiles(config IRCConfig) (IRCConfig) {
+func setupLogFiles(config *IRCConfig) {
 	config.LogFiles = make(map[string]*os.File)
 	for _, channel := range config.Channels {
 		/// FIXME: fix path manipulation
@@ -131,7 +131,6 @@ func setupLogFiles(config IRCConfig) (IRCConfig) {
 		}
 		config.LogFiles[channel] = logFile
 	}
-	return config
 }
 
 func closeLogFiles(config IRCConfig) {
