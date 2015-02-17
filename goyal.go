@@ -129,6 +129,7 @@ func logMessage(config *IRCConfig, channel string, format string, args ...interf
 	today := time.Now().UTC().Format(TIME_FILE_FORMAT)
 	// FIXME: Fix path manipulation
 	logFileName := fmt.Sprintf("%s/%s-%s.txt", config.LogFileDir, channel, today)
+	symLinkName := fmt.Sprintf("%s/%s-%s.txt", config.LogFileDir, channel, "log")
 	logFile, ok := config.LogFiles[channel]
 	var err error
 
@@ -151,6 +152,7 @@ func logMessage(config *IRCConfig, channel string, format string, args ...interf
 		// FIXME: maps are not safe to use concurrently, but this
 		// probably doesn't matter.
 		config.LogFiles[channel] = logFile
+		os.Symlink(logFileName, symLinkName)
 	}
 
 	message := fmt.Sprintf(fmt.Sprintf("<%s> %s\n", now, format), args...)
