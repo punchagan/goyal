@@ -142,7 +142,7 @@ func closeLogFiles(config IRCConfig) {
 
 func logMessage(logFile *os.File, format string, args ...interface{}) {
 	if logFile == nil {
-		panic(fmt.Sprintf("Writing is failing %+v\n", err))
+		panic(fmt.Sprintf("No such log file provided."))
 	}
 	now := time.Now().UTC().Format(TIME_FORMAT)
 	message := fmt.Sprintf(fmt.Sprintf("<%s> %s\n", now, format), args...)
