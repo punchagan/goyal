@@ -1,2 +1,3 @@
+#+STARTUP: indent
 * Goyal
-  Go - Yet another logbot.
+Yet another logbot in Go
