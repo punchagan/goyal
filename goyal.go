@@ -54,51 +54,47 @@ func addCallbacks(connection *irc.Connection, config IRCConfig) {
 	// Join the channels
 	connection.AddCallback("001", func(e *irc.Event) {
 		for _, channel := range config.Channels {
-			logMessage(config.LogFiles[channel], "Joining %s", channel)
 			connection.Join(channel)
 		}
 	})
 
 	connection.AddCallback("JOIN", func(e *irc.Event) {
-		channel := e.Message()
-		nick := e.Nick
+		channel := e.Arguments[0]
 		var message string
-		if nick == config.Nick {
-			message = fmt.Sprintf("Hello, I am %s - yet another logbot written in Go.", nick)
+
+		if e.Nick == config.Nick {
+			message = fmt.Sprintf("Hello, I'm yet another logbot written in Go.")
 		} else {
-			message = fmt.Sprintf("Hello %s, Welcome to %s!", nick, channel)
+			message = fmt.Sprintf("Hello %s, Welcome to %s!", e.Nick, channel)
 		}
+
 		connection.Privmsg(channel, message)
-		logMessage(config.LogFiles[channel], "%s entered %s", nick, channel)
+		logMessage(config.LogFiles[channel], "%s entered %s", e.Nick, channel)
 	})
 
 	connection.AddCallback("PRIVMSG", func(e *irc.Event) {
 		channel := e.Arguments[0]
-		nick := e.Nick
 		switch channel {
 		case config.Nick:
-			connection.Privmsg(nick, "Sorry, I don't accept direct messages!")
+			connection.Privmsg(e.Nick, "Sorry, I don't accept direct messages!")
 		default:
-			logMessage(config.LogFiles[channel], "%s: %s", nick, e.Message())
+			logMessage(config.LogFiles[channel], "%s: %s", e.Nick, e.Message())
 		}
 	})
 
 	connection.AddCallback("CTCP_ACTION", func(e *irc.Event) {
 		channel := e.Arguments[0]
-		nick := e.Nick
-		logMessage(config.LogFiles[channel], "***%s %s", nick, e.Message())
+		logMessage(config.LogFiles[channel], "***%s %s", e.Nick, e.Message())
 	})
 
 	connection.AddCallback("PART", func(e *irc.Event) {
 		channel := e.Arguments[0]
-		nick := e.Nick
-		logMessage(config.LogFiles[channel], "%s left %s", nick, channel)
+		logMessage(config.LogFiles[channel], "%s left %s", e.Nick, channel)
 	})
 
 	connection.AddCallback("QUIT", func(e *irc.Event) {
 		channel := e.Arguments[0]
-		nick := e.Nick
-		logMessage(config.LogFiles[channel], "%s closed IRC", nick)
+		logMessage(config.LogFiles[channel], "%s closed IRC", e.Nick)
 	})
 
 }
