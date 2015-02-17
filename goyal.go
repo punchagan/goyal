@@ -162,7 +162,7 @@ func getLogFile(config *IRCConfig, channel string, now time.Time) *os.File {
 			logFile.Close()
 		}
 
-		logFile, err = os.OpenFile(logFileName, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		logFile, err = os.OpenFile(logFileName, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			panic(fmt.Sprintf("Log file opening failed: %+v\n", err))
 		}
