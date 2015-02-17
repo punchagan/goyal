@@ -6,18 +6,101 @@ import (
 	"github.com/thoj/go-ircevent"
 	"io"
 	"io/ioutil"
+	"os"
 	"strings"
+	"time"
+)
+
+const (
+	TIME_FORMAT   = "Jan 2 2006 15:04:05"
 )
 
 type IRCConfig struct {
-	Nick     string
-	Username string
-	Server   string
-	Channels []string
+	Nick        string
+	Username    string
+	Server      string
+	Channels    []string
+	LogFileDir  string
+	LogFiles    map[string]*os.File
 }
 
-func addCallbacks(c *irc.Connection) {
-	// fmt.Println(c)
+func main() {
+	config, err := getConfig()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	connection := irc.IRC(config.Nick, config.Username)
+	connection.UseTLS = true
+
+	config = setupLogFiles(config)
+	defer closeLogFiles(config)
+	addCallbacks(connection, config)
+
+	//Connect to the server
+	err = connection.Connect(config.Server)
+	if err != nil {
+		fmt.Println("Failed to connect.")
+		return
+	}
+
+	// Connect and wait
+	connection.Loop()
+}
+
+func addCallbacks(connection *irc.Connection, config IRCConfig) {
+
+	// Join the channels
+	connection.AddCallback("001", func(e *irc.Event) {
+		for _, channel := range config.Channels {
+			logMessage(config.LogFiles[channel], "Joining %s", channel)
+			connection.Join(channel)
+		}
+	})
+
+	connection.AddCallback("JOIN", func(e *irc.Event) {
+		channel := e.Message()
+		nick := e.Nick
+		var message string
+		if nick == config.Nick {
+			message = fmt.Sprintf("Hello, I am %s - yet another logbot written in Go.", nick)
+		} else {
+			message = fmt.Sprintf("Hello %s, Welcome to %s!", nick, channel)
+		}
+		connection.Privmsg(channel, message)
+		logMessage(config.LogFiles[channel], "%s entered %s", nick, channel)
+	})
+
+	connection.AddCallback("PRIVMSG", func(e *irc.Event) {
+		channel := e.Arguments[0]
+		nick := e.Nick
+		switch channel {
+		case config.Nick:
+			connection.Privmsg(nick, "Sorry, I don't accept direct messages!")
+		default:
+			logMessage(config.LogFiles[channel], "%s: %s", nick, e.Message())
+		}
+	})
+
+	connection.AddCallback("CTCP_ACTION", func(e *irc.Event) {
+		channel := e.Arguments[0]
+		nick := e.Nick
+		logMessage(config.LogFiles[channel], "***%s %s", nick, e.Message())
+	})
+
+	connection.AddCallback("PART", func(e *irc.Event) {
+		channel := e.Arguments[0]
+		nick := e.Nick
+		logMessage(config.LogFiles[channel], "%s left %s", nick, channel)
+	})
+
+	connection.AddCallback("QUIT", func(e *irc.Event) {
+		channel := e.Arguments[0]
+		nick := e.Nick
+		logMessage(config.LogFiles[channel], "%s closed IRC", nick)
+	})
+
 }
 
 func getConfig() (config IRCConfig, err error) {
@@ -36,30 +119,35 @@ func getConfig() (config IRCConfig, err error) {
 	return config, nil
 }
 
-func main() {
-	config, err := getConfig()
-	if err == nil {
-		connection := irc.IRC(config.Nick, config.Username)
-		connection.UseTLS = true
-
-		addCallbacks(connection)
-
-		//Connect to the server
-		err := connection.Connect(config.Server)
-		if err == nil {
-
-			// Join the channels
-			for _, channel := range config.Channels {
-				fmt.Printf("Joining %s\n", channel)
-				connection.Join(channel)
-			}
-
-		} else {
+func setupLogFiles(config IRCConfig) (IRCConfig) {
+	config.LogFiles = make(map[string]*os.File)
+	for _, channel := range config.Channels {
+		/// FIXME: fix path manipulation
+		logFileName := config.LogFileDir + "/" + channel
+		logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
 			fmt.Println(err)
+			fmt.Println("Log file opening failed.")
 		}
-
-	} else {
-		fmt.Println(err)
+		config.LogFiles[channel] = logFile
 	}
+	return config
+}
 
+func closeLogFiles(config IRCConfig) {
+	for _, logFile := range config.LogFiles {
+		logFile.Close()
+	}
+}
+
+func logMessage(logFile *os.File, format string, args ...interface{}) {
+	if logFile == nil {
+		panic(fmt.Sprintf("Writing is failing %+v\n", err))
+	}
+	now := time.Now().UTC().Format(TIME_FORMAT)
+	message := fmt.Sprintf(fmt.Sprintf("<%s> %s\n", now, format), args...)
+	_, err := logFile.WriteString(message)
+	if err != nil {
+		panic(fmt.Sprintf("Writing is failing %+v\n", err))
+	}
 }
