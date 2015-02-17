@@ -146,7 +146,6 @@ func getLogFile(config *IRCConfig, channel string, now time.Time) *os.File {
 	today := now.Format(TIME_FILE_FORMAT)
 	cname := strings.Replace(channel, "#", "", -1)
 	logFileName := filepath.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", cname, today))
-	symLinkName := filepath.Join(config.LogDir, fmt.Sprintf("%s-%s.txt", cname, "log"))
 	var err error
 
 	// FIXME: maps are not safe to use concurrently
@@ -170,7 +169,6 @@ func getLogFile(config *IRCConfig, channel string, now time.Time) *os.File {
 		// FIXME: maps are not safe to use concurrently, but this
 		// probably doesn't matter.
 		config.LogFiles[channel] = logFile
-		os.Symlink(logFileName, symLinkName)
 
 		// Delete unnecessary files, if any.
 		cleanUpLogs(config.LogDir, now, config.Channels)
