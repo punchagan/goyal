@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -103,7 +104,8 @@ func addCallbacks(connection *irc.Connection, config IRCConfig) {
 }
 
 func getConfig() (config IRCConfig, err error) {
-	data, err := ioutil.ReadFile("goyal-config.json")
+	_, executable, _, _ := runtime.Caller(1)
+	data, err := ioutil.ReadFile(path.Join(path.Dir(executable), "config.json"))
 	if err != nil {
 		return IRCConfig{}, fmt.Errorf("Could not read config file.\n")
 	}
