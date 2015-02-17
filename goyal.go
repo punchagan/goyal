@@ -96,8 +96,10 @@ func addCallbacks(connection *irc.Connection, config IRCConfig) {
 	})
 
 	connection.AddCallback("QUIT", func(e *irc.Event) {
-		channel := e.Arguments[0]
-		logMessage(&config, channel, "%s quit IRC.", e.Nick)
+		// FIXME: Quit messages are written to all channels!
+		for _, channel := range config.Channels {
+			logMessage(&config, channel, "%s quit IRC.", e.Nick)
+		}
 	})
 
 }
