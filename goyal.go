@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const (
@@ -18,6 +19,9 @@ const (
 	TIME_FILE_FORMAT    = "2006-01-02"
 	LOG_FILE_DAYS       = 15
 )
+
+var commands = make(map[string]func(msg string, from string))
+var offlines = make(map[string][]string)
 
 type IRCConfig struct {
 	Nick     string
@@ -29,6 +33,9 @@ type IRCConfig struct {
 }
 
 func main() {
+	// FIXME: how much uglier can we get?
+	commands[",tell"] = tell
+
 	config, err := getConfig()
 	if err != nil {
 		fmt.Println(err)
@@ -52,6 +59,46 @@ func main() {
 	connection.Loop()
 }
 
+func parseAndCallCommand(message string, from string) {
+	message = strings.TrimSpace(message)
+	if !strings.HasPrefix(message, ",") {
+		return
+	}
+	name := strings.FieldsFunc(message, unicode.IsSpace)[0]
+	command, ok := commands[name]
+	if ok {
+		command(strings.TrimSpace(message[len(name):]), from)
+	}
+}
+
+// Deliver a message to a given user.
+// Message is of the form "name <msg>"
+// FIXME: allow other seperators!
+func tell(message, from string) {
+	nick := strings.FieldsFunc(message, unicode.IsSpace)[0]
+	message = strings.TrimSpace(message[len(nick):])
+
+	// FIXME: Do we care to check if the user is online/in the channel?
+	now := time.Now().UTC()
+	message = fmt.Sprintf("At <%s>, %s said -- %s\n", now.Format(TIME_MESSAGE_FORMAT), from, message)
+
+	// JOIN callback looks at the offlines and sends them.
+	messages, ok := offlines[nick]
+	if ok {
+		offlines[nick] = append(messages, message)
+	} else {
+		messages = []string{message}
+		offlines[nick] = messages
+	}
+
+}
+
+func sendOfflines(connection *irc.Connection, nick string) {
+	for _, message := range offlines[nick] {
+		connection.Privmsg(nick, message)
+	}
+}
+
 func addCallbacks(connection *irc.Connection, config IRCConfig) {
 
 	// Join the channels
@@ -67,12 +114,19 @@ func addCallbacks(connection *irc.Connection, config IRCConfig) {
 
 		if e.Nick == config.Nick {
 			message = fmt.Sprintf("Hello, I'm yet another logbot written in Go.")
+			connection.Privmsg(channel, message)
 		} else {
 			message = fmt.Sprintf("Hello %s, Welcome to %s!", e.Nick, channel)
+			connection.Privmsg(channel, message)
+			go sendOfflines(connection, e.Nick)
 		}
 
-		connection.Privmsg(channel, message)
 		logMessage(&config, channel, "%s entered %s", e.Nick, channel)
+	})
+
+	connection.AddCallback("NICK", func(e *irc.Event) {
+		nick := e.Message()
+		go sendOfflines(connection, nick)
 	})
 
 	connection.AddCallback("PRIVMSG", func(e *irc.Event) {
@@ -82,6 +136,7 @@ func addCallbacks(connection *irc.Connection, config IRCConfig) {
 			connection.Privmsg(e.Nick, "Sorry, I don't accept direct messages!")
 		default:
 			logMessage(&config, channel, "%s: %s", e.Nick, e.Message())
+			go parseAndCallCommand(e.Message(), e.Nick)
 		}
 	})
 
