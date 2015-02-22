@@ -97,6 +97,8 @@ func sendOfflines(connection *irc.Connection, nick string) {
 	for _, message := range offlines[nick] {
 		connection.Privmsg(nick, message)
 	}
+	// FIXME: What if new messages were added while we were iterating?
+	delete(offlines, nick)
 }
 
 func addCallbacks(connection *irc.Connection, config IRCConfig) {
