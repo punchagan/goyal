@@ -1,3 +1,6 @@
 #+STARTUP: indent
-* Goyal
-Yet another logbot in Go
+* GoYAL
+
+Go -- Yet Another Logbot
+
+GoYAL is Licensed under the BSD 2-Clause license.
