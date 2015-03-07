@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -251,10 +252,9 @@ func cleanUpLogs(dir string, now time.Time, channels []string) {
 
 		fpath := filepath.Join(dir, f.Name())
 		fmt.Printf("Deleting log file %s\n", fpath)
-		err := os.Remove(fpath)
+		err := exec.Command("shred", "-u", fpath).Run()
 		if err != nil {
 			fmt.Println(err)
 		}
-
 	}
 }
